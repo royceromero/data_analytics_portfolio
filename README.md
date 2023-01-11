@@ -227,21 +227,132 @@ Yes, in a changelog
 <a id="process-setting-up-the-space"></a>
 **Setting up the Space**
 
+```
+#install.packages("tidyverse")
+library(tidyverse)
+library(janitor)
+library(lubridate)
+
+#Upload and label .csv files
+
+bs202004 <- read.csv("../input/cyclistics-data-april-2020-march-2021/202004-divvy-tripdata.csv")
+bs202005 <- read.csv("../input/cyclistics-data-april-2020-march-2021/202005-divvy-tripdata.csv")
+bs202006 <- read.csv("../input/cyclistics-data-april-2020-march-2021/202006-divvy-tripdata.csv")
+bs202007 <- read.csv("../input/cyclistics-data-april-2020-march-2021/202007-divvy-tripdata.csv")
+bs202008 <- read.csv("../input/cyclistics-data-april-2020-march-2021/202008-divvy-tripdata.csv")
+bs202009 <- read.csv("../input/cyclistics-data-april-2020-march-2021/202009-divvy-tripdata.csv")
+bs202010 <- read.csv("../input/cyclistics-data-april-2020-march-2021/202010-divvy-tripdata.csv")
+bs202011 <- read.csv("../input/cyclistics-data-april-2020-march-2021/202011-divvy-tripdata.csv")
+bs202012 <- read.csv("../input/cyclistics-data-april-2020-march-2021/202012-divvy-tripdata.csv")
+bs202101 <- read.csv("../input/cyclistics-data-april-2020-march-2021/202101-divvy-tripdata.csv")
+bs202102 <- read.csv("../input/cyclistics-data-april-2020-march-2021/202102-divvy-tripdata.csv")
+bs202103 <- read.csv("../input/cyclistics-data-april-2020-march-2021/202103-divvy-tripdata.csv")
+
+#Combine the datasets into a single dataframe
+
+bs12mo <- rbind(bs202004, bs202005, bs202006, 
+                bs202007, bs202008, bs202009,
+                bs202010, bs202011, bs202012,
+                bs202101, bs202102, bs202103)
+```
+
 <a id="process-data-cleaning"></a>
 **Data Cleaning**
 
+```
+#Explore the dataset to understand what variables are needed to address the business problem
+
+head(bs12mo)
+dim(bs12mo)
+glimpse(bs12mo)
+str(bs12mo)
+
+#Clean the Environment to allow for faster processing
+
+rm(bs202004, bs202005, bs202006, bs202007, bs202008, bs202009, bs202010, bs202011, bs202012, bs202101, bs202102, bs202103)
+```
+```
+#Start by removing rows and columns with empty data
+
+bs12mo_v2 <- janitor::remove_empty(bs12mo, which = c("cols"))
+bs12mo_v2 <- janitor::remove_empty(bs12mo, which = c("rows"))
+
+print(paste("Removed", nrow(bs12mo_v2) - nrow(bs12mo), "empty rows"))
+print(paste("Removed", ncol(bs12mo_v2) - ncol(bs12mo), "empty columns"))
+```
+```
+#Transform data into correct data types - convert started_at and ended_at column from string to timestamp
+
+bs12mo_v2$started_at <- lubridate:: ymd_hms(bs12mo_v2$started_at)
+bs12mo_v2$ended_at <- lubridate:: ymd_hms(bs12mo_v2$ended_at)
+```
+```
+#Extract data - parse date, month, hour, and weekday from started_at and ended_at variables
+
+bs12mo_v2$start_hour <- lubridate::hour(bs12mo_v2$started_at)
+bs12mo_v2$end_hour <- lubridate::hour(bs12mo_v2$ended_at)
+
+bs12mo_v2$start_date <- as.Date(bs12mo_v2$started_at)
+bs12mo_v2$end_date <- as.Date(bs12mo_v2$ended_at)
+
+bs12mo_v2$month <- format(as.Date(bs12mo_v2$start_date), "%Y-%m")
+bs12mo_v2$day <- format(as.Date(bs12mo_v2$start_date), "%d")
+bs12mo_v2$year <- format(as.Date(bs12mo_v2$start_date), "%Y")
+
+bs12mo_v2$start_wkday <- wday(bs12mo_v2$start_date, week_start = 1)
+bs12mo_v2$end_wkday <- wday(bs12mo_v2$end_date, week_start = 1)
+```
+```
+#Calculate ride duration using ended_at and started_at timestamp columns, formatted in "minutes" and rounded to the hundredth decimal point. it is assumed an additional decimal point will not provide more meaningful business insight.
+
+bs12mo_v2$trip_duration <- round(difftime(bs12mo_v2$ended_at,bs12mo_v2$started_at,units=c("mins")),2)
+```
+```
+#Summarize the data to ensure that all variables fall within a reasonable range
+
+summary(bs12mo_v2)
+
+#There do not appear to be any latitude and longitude values that fall beyond a reasonable range of the geographical location of Cyclistics operating market.
+```
+```
+#Removed duplicate trip_ids
+
+bs12mo_v3 <- bs12mo_v2[!duplicated(bs12mo_v2$ride_id), ]
+
+print(paste("Removed", nrow(bs12mo_v2) - nrow(bs12mo_v3), "duplicated rows"))
+```
 
 Before running the code chunk below, follow up with Marketing Manager to confirm below:
 * Can we omit rows with NAs?
 * Trip_durations below 30 seconds might be considered outliers and might not be datapoints to include in the dataset. 
 * How are data like the start_station_id, end_station_id, lattitude, and longitude collected? Why are some rows missing this info? Can we rely on this data when available?
 
+```
+#Read through list of start_station_names and end_station_names to determine 
+
+unique(bs12mo_v3$start_station_name)
+unique(bs12mo_v3$end_station_name)
+```
+```
+#Filter out trip_duration below 30 seconds (0.5min) and remove all NA rows and trips with Cyclistic testing facilities, warehouses, or maintennace/repair as the station. 
+
+cleaned_bs12mo <- bs12mo_v3[!(bs12mo_v3$start_station_name == "WATSON TESTING - DIVVY" | bs12mo_v3$start_station_name == "HUBBARD ST BIKE CHECKING (LBS-WH-TEST)" | bs12mo_v3$start_station_name == "" | bs12mo_v3$end_station_name == "" | bs12mo_v3$end_station_name == "Base - 2132 W Hubbard Warehouse" | bs12mo_v3$trip_duration < 0.5),] %>%
+  drop_na()
+
+print(paste("Removed", nrow(bs12mo_v3) - nrow(cleaned_bs12mo), "NA, start_station_name of 'HUBBARD ST BIKE CHECKING (LBS-WH-TEST)' and 'WATSON TESTING DIVVY', end_statiion_name of '' and 'Base - 2132 W Hubbard Warehouse', and < 0.5 minute trip_duration rows"))
+```
 
 Once finished with the cleaning process, export the cleaned data frame as a .csv and clean the Environment
 
+```
 cleaned_bs12mo %>%
     write.csv("cleaned_bs12mo.csv")
-    
+```
+```
+#Clean out environment
+rm(bs12mo_v3, bs12mo_v2, bs12mo)
+```
+
 
 <a id="analyze"></a>
 # Analyze
