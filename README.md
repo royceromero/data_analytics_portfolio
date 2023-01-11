@@ -409,6 +409,22 @@ Members
 <a id="analyze-code"></a>
 #### Analyze Code
 
+```
+# I start the process with some exploratory analysis by grouping and summarizing the data in different ways. First we need to understand how the data is distributed between the two customer groups.
+
+ggplot(cleaned_bs12mo, aes(member_casual, fill = member_casual)) +
+  geom_bar() +
+  scale_y_continuous(labels = scales::comma) +
+  labs(title = "Exhibit 1: Ride Distribution", subtitle = "Member vs Casual", y = "Count", x = "User Group") + 
+  guides(fill = "none")
+  ```
+  ```
+  print(paste("Total Annual Member Rides:", nrow(cleaned_bs12mo[cleaned_bs12mo$member_casual=='member',])))
+print(paste("Total Annual Casual Rides:", nrow(cleaned_bs12mo[cleaned_bs12mo$member_casual=='casual',])))
+print(paste("Total Rides:", nrow(cleaned_bs12mo)))
+print(paste("Annual Members ridership percentage of total:", round(nrow(cleaned_bs12mo[cleaned_bs12mo$member_casual=='member',])/(nrow(cleaned_bs12mo))*100,2),"%"))
+print(paste("Casual Riders ridership percentage of total:", round(nrow(cleaned_bs12mo[cleaned_bs12mo$member_casual=='casual',])/nrow(cleaned_bs12mo)*100,2),"%"))
+```
 
 <a id="analyze-code-analysis-layout"></a>
 **Analysis Layout**
@@ -428,6 +444,57 @@ Members
 In order to see how trips vary over the course of the year, I created a dataframe grouping the data by week and month, and then plotted the results to visualize the data over the year.
 * Analysis on trip count and trip duration
 
+```
+wk <- cleaned_bs12mo %>%
+  group_by(member_casual, week = floor_date(start_date,"week")) %>%
+  summarize(
+    mean = mean(trip_duration),
+    median = median(trip_duration),
+    count = n()
+  )
+
+ggplot(data=wk) +
+geom_bar(aes(x = week, y = count, fill = member_casual), stat = "identity", position = "dodge", alpha = 0.6) +
+geom_line(aes(x = week, y = median*3000, color = member_casual, group = member_casual), size = 1) +
+theme(axis.text.x = element_text(angle = 90, vjust = 0.7)) +
+scale_y_continuous(labels = scales::comma, sec.axis = sec_axis(trans = ~./3000, name = "Median Trip Duration (min)")) +
+scale_x_date(date_breaks = "2 week") +
+labs(title = "Exhibit 2: Weekly Rides", subtitle = "Member vs. Casual", fill = "User Group", x="Week", y = "Ride Count") +
+guides(color = "none")
+```
+```
+mo <- cleaned_bs12mo %>%
+  group_by(member_casual, month) %>%
+  summarize(
+    mean = mean(trip_duration),
+    median = median(trip_duration),
+    count = n()
+  )
+
+monthnames <- c(
+  '2020-04' = "Apr-20",
+  '2020-05' = "May-20",
+  '2020-06' = "Jun-20",
+  '2020-07' = "Jul-20",
+  '2020-08' = "Aug-20",
+  '2020-09' = "Sep-20",
+  '2020-10' = "Oct-20",
+  '2020-11' = "Nov-20",
+  '2020-12' = "Dec-20",
+  '2021-01' = "Jan-21",
+  '2021-02' = "Feb-21",
+  '2021-03' = "Mar-21"
+)
+
+ggplot(data=mo) +
+geom_bar(aes(x = month, y = count, fill = member_casual), stat = "identity", position = "dodge", alpha = 0.6) +
+geom_line(aes(x = month, y = median*4000, color = member_casual, group = member_casual), size = 1.5) +
+theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+scale_x_discrete(labels = as_labeller(monthnames)) +
+scale_y_continuous(labels = scales::comma, sec.axis = sec_axis(trans = ~./4000, name = "Median Trip Duration (min)")) +
+labs(title="Exhibit 3: Monthly Rides", subtitle = "Member vs. Casual", fill = "User Group", x="Month", y = "Ride Count") +
+guides(color = "none")
+```
 
 The charts above shows how trip count and median trip duration differs on a weekly and monthly basis between member and casual users. Overall, the bar chart resembles a bell curve, starting with a lower trip count in Spring 2020, peaking during the summer, and declining in Fall/Winter 2020 until eventually increasing again. Line plots both steadily decline from Spring 2020 to Winter 2020, and slowly rebound in Spring 2021. 
 
@@ -440,6 +507,62 @@ While the weekly chart aggregates trip count and median trip information over a 
 **Weekday Trends**
 * Analysis on trip count and trip duration
 
+```
+wkday <- cleaned_bs12mo %>% 
+  group_by(member_casual, start_wkday) %>% 
+  summarize(
+    count = n(), 
+    median = median(trip_duration)
+  )
+
+weekdaynames <- c(
+  "1" = "Mon",
+  "2" = "Tue",
+  "3" = "Wed",
+  "4" = "Thurs",
+  "5" = "Fri",
+  "6" = "Sat",
+  "7" = "Sun"
+)
+
+ ggplot(data = wkday) +
+  geom_bar(aes(x = factor(start_wkday), y = count, fill = member_casual), stat = "identity", position = "dodge", alpha = 0.6) +
+  geom_line(aes(x = start_wkday, y = median*10000, color = member_casual, group = member_casual), size = 1, alpha = 1.5) +
+  theme(axis.text.x = element_text (vjust = 0.7)) +
+  scale_x_discrete(labels = as_labeller(weekdaynames)) + 
+  scale_y_continuous(labels = scales::comma, sec.axis = sec_axis(trans = ~./10000, name = "Median Trip Duration (min)")) +
+  labs(title = "Exhibit 4: Rides by Weekday", subtitle = "Member vs Casual", fill = "User Group", x = "Weekday", y = "Ride Count") +
+  guides(color = "none")
+```
+```
+mo_wkday <- cleaned_bs12mo %>%
+  group_by(member_casual, month, start_wkday) %>%
+  summarize(
+    mean = mean(trip_duration),
+    median = median(trip_duration),
+    count = n()
+  ) %>% 
+  arrange(month, start_wkday)
+```
+```
+ggplot(data = mo_wkday) +
+geom_bar(aes(x = month, y = count, fill = member_casual), stat = "identity", position = "dodge", alpha = 0.6) +
+geom_line(aes(x = month, y = median*1000, color = member_casual, group = member_casual), size = 1, alpha = 1.5) +
+facet_wrap(~start_wkday, labeller = as_labeller(weekdaynames)) + 
+theme(axis.text.x = element_text(angle = 90, vjust = 0.7)) +
+scale_x_discrete(labels = as_labeller(monthnames)) +
+scale_y_continuous(labels = scales::comma, sec.axis = sec_axis(trans = ~./1000, name = "Median Trip Duration (min)")) +
+labs(title="Exhibit 5: Monthly Rides by Weekday", subtitle = "Member vs. Casual", fill = "User Group", x = "Month", y = "Ride Count") + 
+guides(color = "none")
+
+cleaned_bs12mo %>% 
+  group_by(member_casual, start_wkday) %>% 
+  summarize(
+    count = n(),
+    median_duration = median(trip_duration)
+  ) %>% 
+  arrange(member_casual,desc(count))
+```
 
 While trip count for members is more evenly distributed among weekdays having a range of 54,000 trips and highest amount of trips taken on Saturday, Friday, and Wednesday, casual ridership is more heavily skewed toward the weekend having a range of 182,000 trips and most trips taken on Saturday, Sunday, and Friday.  Median trip duration line plots do not reveal vast differences between this and the previous plot, with the exception of a few outliers.
 
@@ -448,17 +571,79 @@ While trip count for members is more evenly distributed among weekdays having a 
 **Start Hour Trends**
 * Analysis on trip count and trip duration
 
+```
+mo_hr <- cleaned_bs12mo %>%
+  group_by(member_casual, month, start_hour) %>%
+  summarize(
+    mean= mean(trip_duration),
+    median= median(trip_duration),
+    count=n() 
+  ) %>% 
+  ungroup()
+
+ggplot(data=mo_hr) +
+geom_bar(aes(x = month, y = count, fill = member_casual), stat = "identity", position = "dodge", alpha = 0.7) + 
+geom_line(aes(x = month, y = median*1000, color = member_casual, group = member_casual), size = 0.5, alpha = 1.5) +
+facet_wrap(~start_hour) + 
+theme(axis.text.x = element_text(angle = 90, vjust = 0.5, size = 6), axis.text.y = element_text(size = 6)) +
+scale_y_continuous(labels = scales::comma, limits = c(0, 35000), sec.axis = sec_axis(trans = ~./1000, name = "Median Trip Duration (min)")) + 
+scale_x_discrete(labels = as_labeller(monthnames)) +
+labs(title="Exhibit 6: Monthly Rides by Hour", subtitle = "Member vs Casual", fill = "User Group", x = "Month", y = "Ride Count") +
+guides(color = "none")
+```
 
 The chart above above consists of 24 combo bar and bar charts each corresponding to start hour, with x-axes representing Months, y-axes representing Trip Count and Median Trip Duration, with colors corresponding to member and casual users.
 
 The chart shows that trip count in morning hours between 6am-9am are dominated by members at most months of the year. From 10am-7pm, the bar charts show that member and casual users are similar in total ride count between June 2020 to the end of October 2020, but we see a dramatic decline in casual user ridership after this time frame. Ride counts from 8pm-12am between June 2020 and October 2020 are mostly contributed by casual users, however we see the same drop off in ride count post-October 2020. Median trip duration generally shows a similar trend between groups over the course of the year. While median trip duration for members is relatively consistent for each start hour and across the analysis period, casual user median trip duration shows more volatility overall, with the most variance between 10pm - 5am. This could be attributable to skewed data and/or outliers.
 
+```
+wkday_hr <- cleaned_bs12mo %>%
+  group_by(member_casual, start_wkday, start_hour) %>%
+  summarize(
+    mean= mean(trip_duration),
+    median= as.numeric(median(trip_duration)),
+    count=n() 
+  ) %>% 
+  ungroup()
+  
+ggplot(data=wkday_hr) +
+geom_bar(aes(x = factor(start_hour), y = count, fill = member_casual), stat = "identity", position = "dodge", alpha = 0.7) + 
+geom_line(aes(x = start_hour, y = median*1000, color = member_casual, group = member_casual), size = 0.5) +
+facet_wrap(~as.factor(start_wkday), labeller = as_labeller(weekdaynames)) + 
+theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+scale_y_continuous(labels = scales::comma, limits = c(0, 40000), sec.axis = sec_axis(trans = ~./1000, name = "Median Trip Duration (min)")) + 
+labs(title="Exhibit 7: Hourly Rides by Weekday", subtitle = "Member vs. Casual", fill = "User Group", x = "Start Hour", y = "Count") +
+guides(color = "none")
+```
 
 Exhibit 7 shows ride count and median ride duration over all hours of the day divided into seven plots for each day of the week. These plots show that the members dominate the rides during the weekdays at most hours of the day, but ride counts even out over all hours on the weekend. 
 
 
 To simplify the Exhibits 6 and 7 above, I plot the chart below aggregating trip counts into columns by start hour.
 
+```
+ggplot(data = mo_hr) +
+geom_bar(aes(x = factor(start_hour), y = count, fill = member_casual), stat = "identity", position = "dodge") +
+theme(axis.text.x = element_text(vjust = 0.5)) +
+scale_y_continuous(labels = scales::comma) + 
+labs(title="Exhibit 8: Ride Count by Start Hour", subtitle = "Member vs. Casual", fill = "User Group", x = "Start Hour", y = "Ride Count") 
+```
+```
+ggplot(data = mo_hr) + 
+geom_boxplot(aes(x = factor(start_hour), y = median, fill = member_casual)) +
+theme(axis.text.x = element_text(vjust = 0.5)) +
+ylim(0,50) + 
+labs(title="Exhibit 9: Median Monthly Ride Duration by Hour", subtitle = "Member vs. Casual", fill = "User Group", x = "Start Hour", y = "Median Duration (min)")
+```
+```
+cleaned_bs12mo %>% 
+  group_by(member_casual, start_hour) %>% 
+  summarize(
+    count=n(),
+    median_duration=median(trip_duration)
+  ) %>% 
+  arrange(member_casual, desc(count))
+```
 
 The charts above show the total count of trips that started at each hour of the day and the monthly variance of median trip duration at each hour. It reinforces the insights gained previously aggregating trip count and trip duration data over the course of the year, however it does not show how trip count at each start hour and trip duration change throughout the year since these are not plotted over time.
 
@@ -471,6 +656,20 @@ Start by summarizing the data
 <a id="analyze-code-rideable-type-trends"></a>
 **Rideable Type Trends**
 
+```
+mo_type <- cleaned_bs12mo %>% 
+  group_by(member_casual, month, rideable_type) %>% 
+  summarize(
+    count = n()
+  ) 
+
+ggplot(data = mo_type, aes(x = member_casual, y = count, fill = rideable_type)) +
+geom_bar(stat = "identity", color = "white") +
+facet_grid(~month, labeller = as_labeller(monthnames)) +
+theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) + 
+scale_y_continuous(labels = scales::comma) +
+labs(title = "Exhibit 10: Rideable Type", subtitle = "Member vs. Casual", y = "Ride Count", x = "User Group", fill = "Rideable Type")
+```
 
 Exhibit 9 above shows docked bikes account for the largest portion of trips for both members and casual users, however we see a trend of increasing usage of electric bikes among both groups from August 2020, and classic bikes from December 2020. Another trend that emerges over time is that riders, both members and casual users alike, are choosing to use classic bikes over the other two bike types, although we'll need to monitor how rideable types change going forward.
 
@@ -479,17 +678,129 @@ Exhibit 9 above shows docked bikes account for the largest portion of trips for 
 **Start and End Station Trends**
 * Where are Cyclistic users arriving and departing from?
 
+```
+start_station <- cleaned_bs12mo %>% 
+  group_by(member_casual, start_station_name) %>% 
+  summarize(
+    count=n()
+  ) %>% 
+  arrange(desc(count))
+
+start_station$pct_total = (100*(start_station$count/sum(start_station$count)))
+
+start_station$pct_group = 
+  if_else(start_station$member_casual == "casual", (100*(start_station$count/1338712)), (100*(start_station$count/1915887))) 
+
+start_station$cumct_total =
+  cumsum(start_station$count)
+
+start_station$cumct_group <- ave(start_station$count, start_station$member_casual, FUN=cumsum)
+
+start_station$cumpct_total = (100*(start_station$cumct_total)/sum(start_station$count))
+
+start_station$cumpct_group = 
+  if_else(start_station$member_casual == "casual", (100*(start_station$cumct_group/1338712)), (100*(start_station$cumct_group/1915887)))
+
+head(start_station)
+```
+```
+start_station %>% 
+  top_n(20, count) %>% 
+  ggplot(aes(x = start_station_name, y = count, fill = member_casual)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(title = "Exhibit 11: Top 20 Start Stations", subtitle = "Member vs Casual", fill = "User Group", x = "Start Station", y = "Ride Count")
+```
 
 This graph shows the top 20 start stations in ride count for members and casual riders. It shows that nearly half of the stations are either groups' top 20, showing that members and casual riders share alike share a high number of trip departures from these stations.
 
+```
+start_station %>% 
+  filter(pct_group >= 0.01) %>% 
+  mutate(percent_ranges = cut(pct_group, seq(0, 2, 0.05))) %>%
+  group_by(member_casual, percent_ranges) %>% 
+  summarize(
+    count = n()
+    ) %>% 
+  ggplot(aes(x = percent_ranges, y = count, fill = member_casual)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  labs(title = "Exhibit 12: Distribution of Rides per Start Station", subtitle = "Percent of Total Member and Casual Rides", x = "Contribution Percentage Range", y = "Number of Start Stations", fill = "User Group") +
+  annotate("text", x = "(0.3,0.35]", y = 175, label = "*exlcudes start stations <0.01% of member/casual ride percentages", size = 2.25)
+
+
+start_station %>% 
+  mutate(percent_ranges = cut(pct_group, seq(0, 2, 0.05))) %>%
+  group_by(member_casual, percent_ranges) %>% 
+  summarize(
+    count = n()
+    )
+```
 
 The bar chart above plots the number of start stations that fall within of contribution percentage ranges on the x-axis. The contribution ranges are groupings for ride count percentage of each start station for members and casual riders. For example, over 150 start stations contributed between 0.00% and 0.05% of all casual rides.
 
 This shows how ride counts between members and casual riders are distributed among start stations on a percent of total rides of each group basis. The visual along with the data table are skewed to the left, meaning that most stations contribute a very small percentage of the total ridership among groups. For example, 87 start stations account for 50% of casual rides, while 104 stations account for 50% of member rides. 
 
+```
+end_station <- cleaned_bs12mo %>% 
+  group_by(member_casual, end_station_name) %>%
+  summarize(
+    count = n()
+  ) %>%
+  arrange(desc(count))
+
+end_station$pct_total = (100*(end_station$count/sum(end_station$count)))
+
+end_station$pct_group = 
+  if_else(end_station$member_casual == "casual", (100*(end_station$count/1338712)), (100*(end_station$count/1915887))) 
+
+end_station$cumct_total =
+  cumsum(end_station$count)
+
+end_station$cumct_group <- ave(end_station$count, end_station$member_casual, FUN=cumsum)
+
+end_station$cumpct_total = (100*(end_station$cumct_total)/sum(end_station$count))
+
+end_station$cumpct_group = 
+  if_else(end_station$member_casual == "casual", (100*(end_station$cumct_group/1338712)), (100*(end_station$cumct_group/1915887)))
+
+head(end_station)
+```
+```
+end_station %>% 
+  top_n(20, count) %>% 
+  ggplot(aes(x = end_station_name, y = count, fill = member_casual)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(title = "Exhibit 13: Top 20 End Stations", subtitle = "Member vs Casual", fill = "User Group", x = "End Station", y = "Ride Count")
+```
 
 This graph shows the top 20 end stations in ride count for members and casual riders. Comparing the top 20 start and end stations among members and casual riders, the visuals similar. In addition to both plots sharing much of the same stations, trip counts among common stations are very similar as well. 
 
+```
+end_station %>% 
+  filter(pct_group >= 0.01) %>% 
+  mutate(percent_ranges = cut(pct_group, seq(0, 2.15, 0.05))) %>%
+  group_by(member_casual, percent_ranges) %>% 
+  summarize(
+    count = n()
+    ) %>% 
+  ggplot(aes(x = percent_ranges, y = count, fill = member_casual)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  labs(title = "Exhibit 14: Distribution of Rides per End Station", subtitle = "Percent of Total Member and Casual Rides", x = "Contribution Percentage Range", y = "Number of End Stations", fill = "User Group") +
+  annotate("text", x = "(0.3,0.35]", y = 165, label = "*exlcudes end stations <0.01% of member/casual ride percentages", size = 2.25)
+
+
+end_station %>% 
+  mutate(percent_ranges = cut(pct_group, seq(0, 2.15, 0.05))) %>%
+  group_by(member_casual, percent_ranges) %>% 
+  summarize(
+    count = n()
+    )
+```
 
 Similar to the "Distribution of Rides per Start Station", this shows how ride counts between members and casual riders are distributed among end stations on a percent of total rides of each group basis. The visual along with the data table are skewed to the left, meaning that most stations contribute a very small percentage of the total ridership among groups. For example, 86 end stations account for 50% of casual rides, while 104 end stations account for 50% of member rides. 
 
@@ -497,10 +808,79 @@ This shows that rides are more evenly distributed among stations for members the
 
 Next, I wanted to see how trip counts to and from the top 20 stations for members and casual riders changed over the course of the year.
 
+```
+top_casual_start_stations <- cleaned_bs12mo %>% 
+  group_by(member_casual, month, start_station_name) %>% 
+  summarize(
+    count = n()
+  ) %>% 
+  filter(member_casual == "casual", start_station_name == "Buckingham Fountain" | start_station_name == "Clark St & Armitage Ave" | start_station_name == "Clark St & Elm St" | start_station_name == "Clark St & Lincoln Ave" | start_station_name == "Columbus Dr & Randolph St" | start_station_name == "Fairbanks Ct & Grand Ave" | start_station_name == "Indiana Ave & Roosevelt Rd" | start_station_name == "Lake Shore Dr & Monroe St" | start_station_name == "Lake Shore Dr & North Blvd" | start_station_name == "Michigan Ave & 8th St" | start_station_name == "Michigan Ave & Lake St" | start_station_name == "Michigan Ave & Oak St" | start_station_name == "Michigan Ave & Washington St" | start_station_name == "Millennium Park" | start_station_name == "Shedd Aquarium" | start_station_name == "Streeter Dr & Grand Ave" | start_station_name == "Theater on the Lake" | start_station_name == "Wabash Ave & Grand Ave" | start_station_name == "Wells St & Concord Ln" | start_station_name == "Wells St & Elm St")
+
+top_casual_start_stations %>% 
+  ggplot(aes(x = month, y = start_station_name, fill = count)) +
+  geom_tile(color = "white", lwd = 0.5, linetype = 1) +
+  coord_fixed() +
+  scale_fill_distiller() + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) + 
+  scale_x_discrete(label = as_labeller(monthnames)) + 
+  labs(title = "Exhibit 15: Top 20 Start Station Heat Map", subtitle = "Among Casual Riders", x = element_blank(), y = "Station Name", fill = "Ride Count")
+```
+```
+top_casual_end_stations <- cleaned_bs12mo %>% 
+  group_by(member_casual, month, end_station_name) %>% 
+  summarize(
+    count = n()
+  ) %>% 
+  filter(member_casual == "casual", end_station_name == "Buckingham Fountain" | end_station_name == "Clark St & Armitage Ave" | end_station_name == "Clark St & Elm St" | end_station_name == "Clark St & Lincoln Ave" | end_station_name == "Fairbanks Ct & Grand Ave" | end_station_name == "Indiana Ave & Roosevelt Rd" | end_station_name == "Lake Shore Dr & Belmont Ave" | end_station_name == "Lake Shore Dr & Monroe St" | end_station_name == "Lake Shore Dr & North Blvd" | end_station_name == "Lake Shore Dr & Wellington Ave" | end_station_name == "Michigan Ave & 8th St" | end_station_name == "Michigan Ave & Lake St" | end_station_name == "Michigan Ave & Oak St" | end_station_name == "Michigan Ave & Washington St" | end_station_name == "Michigan Ave & Washington St" | end_station_name == "Millennium Park" | end_station_name == "Streeter Dr & Grand Ave" | end_station_name == "Theater on the Lake" | end_station_name == "Wabash Ave & Grand Ave" | end_station_name == "Wabash Ave & Roosevelt Rd" | end_station_name == "Wells St & Concord Ln")
+
+top_casual_end_stations %>% 
+  ggplot(aes(x = month, y = end_station_name, fill = count)) +
+  geom_tile(color = "white", lwd = 0.5, linetype = 1) +
+  coord_fixed() +
+  scale_fill_distiller() + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) + 
+  scale_x_discrete(label = as_labeller(monthnames)) + 
+  labs(title = "Exhibit 16: Top 20 End Station Heat Map", subtitle = "Among Casual Riders", x = element_blank(), y = "Station Name", fill = "Ride Count")
+```
 
 The heat maps above show how ride count for the top 20 start/end stations for casual riders vary over the analysis period. Arrivals and departures peak at these stations during the summer months, followed by a sharp decline in ride count across all stations headed into the winter months, and a slight rebound at the start of spring.
 
 The start and end station heat maps for casual riders are largely the same, not only in the start/end stations in the charts, but also in the inflections in the heat map. 
+
+```
+top_member_start_stations <- cleaned_bs12mo %>% 
+  group_by(member_casual, month, start_station_name) %>% 
+  summarize(
+    count = n()
+  ) %>% 
+  filter(member_casual == "member", start_station_name == "Broadway & Barry Ave" | start_station_name == "Broadway & Cornelia Ave" | start_station_name == "Clark St & Armitage Ave" | start_station_name == "Clark St & Elm St" | start_station_name == "Clark St & Lincoln Ave" |  start_station_name == "Clark St & Schiller St" | start_station_name == "Columbus Dr & Randolph St" | start_station_name == "Dearborn Pkwy & Delaware Pl" | start_station_name == "Dearborn St & Erie St" |  start_station_name == "Desplaines St & Kinzie St" | start_station_name == "Kingsbury St & Kinzie St" |  start_station_name == "Lake Shore Dr & North Blvd" |  start_station_name == "Lake Shore Dr & Wellington Ave" |  start_station_name == "Larrabee St & Webster Ave" | start_station_name == "St. Clair St & Erie St" | start_station_name == "Theater on the Lake" | start_station_name == "Wabash Ave & Grand Ave" | start_station_name == "Wells St & Concord Ln" | start_station_name == "Wells St & Elm St" | start_station_name == "Wells St & Huron St")
+
+top_member_start_stations %>% 
+  ggplot(aes(x = month, y = start_station_name, fill = count)) +
+  geom_tile(color = "white", lwd = 0.5, linetype = 1) +
+  coord_fixed() +
+  scale_fill_distiller() + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) + 
+  scale_x_discrete(label = as_labeller(monthnames)) + 
+  labs(title = "Exhibit 17: Top 20 Start Station Heat Map", subtitle = "Among Members", x = element_blank(), y = "Station Name", fill = "Ride Count")
+```
+```
+top_member_end_stations <- cleaned_bs12mo %>% 
+  group_by(member_casual, month, end_station_name) %>% 
+  summarize(
+    count = n()
+  ) %>% 
+  filter(member_casual == "member", end_station_name == "Broadway & Barry Ave" | end_station_name == "Broadway & Cornelia Ave" | end_station_name == "Clark St & Armitage Ave" | end_station_name == "Clark St & Drummond Pl" | end_station_name == "Clark St & Elm St" |  end_station_name == "Clark St & Lincoln Ave" | end_station_name == "Dearborn Pkwy & Delaware Pl" | end_station_name == "Dearborn St & Erie St" | end_station_name == "Desplaines St & Kinzie St" |  end_station_name == "Kingsbury St & Kinzie St" |  end_station_name == "Lake Shore Dr & North Blvd" |  end_station_name == "Lake Shore Dr & Wellington Ave" |  end_station_name == "Larrabee St & Webster Ave" | end_station_name == "St. Clair St & Erie St" | end_station_name == "Theater on the Lake" | end_station_name == "Wabash Ave & Grand Ave" | end_station_name == "Wabash Ave & Roosevelt Rd" | end_station_name == "Wells St & Concord Ln" | end_station_name == "Wells St & Elm St" | end_station_name == "Wells St & Huron St")
+
+top_member_end_stations %>% 
+  ggplot(aes(x = month, y = end_station_name, fill = count)) +
+  geom_tile(color = "white", lwd = 0.5, linetype = 1) +
+  coord_fixed() +
+  scale_fill_distiller() + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) + 
+  scale_x_discrete(label = as_labeller(monthnames)) + 
+  labs(title = "Exhibit 18: Top 20 End Station Heat Map", subtitle = "Among Members", x = element_blank(), y = "Station Name", fill = "Ride Count")
+```
 
 
 <a id="share"></a>
